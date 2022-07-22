@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/paulcervov/cities-coords/issues"
   },
-  "homepage": "https://github.com/paulcervov/cities-coords#readme"
+  "homepage": "https://github.com/paulcervov/cities-coords#readme",
+  "dependencies": {
+    "dotenv": "^16.0.1"
+  }
 }
