@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/paulcervov/cities-coords#readme",
   "dependencies": {
+    "axios": "^0.27.2",
     "csv": "^6.2.0",
     "dotenv": "^16.0.1"
   }
