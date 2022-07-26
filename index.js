@@ -6,7 +6,7 @@ require('dotenv').config();
 
 async function bootstrap() {
 
-    const cityCoordinatesCache = new Map();
+    const cityCoordsCache = new Map();
 
     await pipeline(
         fs.createReadStream('centers_demo.csv'),
@@ -16,21 +16,19 @@ async function bootstrap() {
             trim: true
         }),
         csv.transform(async (input, done) => {
-
-            // try to get coordinates from cache
-            if(cityCoordinatesCache.has(input.city)){
-                done(null, {...input, city_coordinates: cityCoordinatesCache.get(input.city)})
+            if(!cityCoordsCache.has(input.city)) {
+                console.log(`First callback, get ${input.city} coords from geocoder...`);
+                const url = encodeURI(`https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.API_KEY_GEOCODER}&format=json&geocode=${input.city}`);
+                const {data: {response: {GeoObjectCollection: {featureMember}}}} = await axios(url);
+                const city_coordinates = featureMember[0].GeoObject.Point.pos;
+                cityCoordsCache.set(input.city, city_coordinates);
             }
-
-            // request to geocoder API
-            const url = encodeURI(`https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.API_KEY_GEOCODER}&format=json&geocode=${input.city}`);
-            const {data: {response: {GeoObjectCollection: {featureMember}}}} = await axios(url);
-            const city_coordinates = featureMember[0].GeoObject.Point.pos;
-
-            // update cache
-            cityCoordinatesCache.set(input.city, city_coordinates);
-
-            done(null, {...input, city_coordinates})
+            console.log(`First callback, coords for ${input.city}: `, cityCoordsCache.get(input.city))
+            done(null, {...input, city_coordinates: cityCoordsCache.get(input.city)});
+        }),
+        csv.transform(async (input, done) => {
+            console.log(`Second callback, coords for ${input.city}: `, cityCoordsCache.get(input.city));
+            done(null, input)
         }),
         csv.stringify({header: true}),
         fs.createWriteStream('centers_demo_processed.csv')
