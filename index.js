@@ -6,7 +6,18 @@ require('dotenv').config();
 
 async function bootstrap() {
 
-    const cityCoordsCache = new Map();
+    const geocoderResponseCache = new Map();
+
+    async function getCityCoordinates(city) {
+        if(!geocoderResponseCache.has(city)) {
+            const geocoderResponsePromise = axios(encodeURI(`https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.API_KEY_GEOCODER}&format=json&geocode=${city}`));
+            geocoderResponseCache.set(city, geocoderResponsePromise);
+        }
+
+        const { data: { response: { GeoObjectCollection: { featureMember } } } } = await geocoderResponseCache.get(city);
+        const city_coordinates = featureMember?.[0].GeoObject.Point.pos;
+        return { city_coordinates };
+    }
 
     await pipeline(
         fs.createReadStream('centers_demo.csv'),
@@ -15,20 +26,14 @@ async function bootstrap() {
             delimiter: ';',
             trim: true
         }),
-        csv.transform(async (input, done) => {
-            if(!cityCoordsCache.has(input.city)) {
-                console.log(`First callback, get ${input.city} coords from geocoder...`);
-                const url = encodeURI(`https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.API_KEY_GEOCODER}&format=json&geocode=${input.city}`);
-                const {data: {response: {GeoObjectCollection: {featureMember}}}} = await axios(url);
-                const city_coordinates = featureMember[0].GeoObject.Point.pos;
-                cityCoordsCache.set(input.city, city_coordinates);
-            }
-            console.log(`First callback, coords for ${input.city}: `, cityCoordsCache.get(input.city))
-            done(null, {...input, city_coordinates: cityCoordsCache.get(input.city)});
-        }),
-        csv.transform(async (input, done) => {
-            console.log(`Second callback, coords for ${input.city}: `, cityCoordsCache.get(input.city));
-            done(null, input)
+        csv.transform((input, done) => {
+            return getCityCoordinates(input.city)
+                .then((resp) => {
+                    return done(null, { ...input, ...resp })
+                })
+                .catch((err) => {
+                    return done(err)
+                })
         }),
         csv.stringify({header: true}),
         fs.createWriteStream('centers_demo_processed.csv')
