@@ -9,6 +9,7 @@ async function bootstrap() {
     const geocoderResponseCache = new Map();
 
     async function getCityCoordinates(city) {
+
         if(!geocoderResponseCache.has(city)) {
             const geocoderResponsePromise = axios(encodeURI(`https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.API_KEY_GEOCODER}&format=json&geocode=${city}`));
             geocoderResponseCache.set(city, geocoderResponsePromise);
@@ -20,13 +21,13 @@ async function bootstrap() {
     }
 
     await pipeline(
-        fs.createReadStream('centers_demo.csv'),
+        fs.createReadStream('centers.csv'),
         csv.parse({
             columns: true,
             delimiter: ';',
             trim: true
         }),
-        csv.transform((input, done) => {
+        csv.transform({parallel: 1}, (input, done) => {
             return getCityCoordinates(input.city)
                 .then((resp) => {
                     return done(null, { ...input, ...resp })
@@ -36,7 +37,7 @@ async function bootstrap() {
                 })
         }),
         csv.stringify({header: true}),
-        fs.createWriteStream('centers_demo_processed.csv')
+        fs.createWriteStream('centers_processed.csv')
     );
     console.log('Done 🍻');
 }
